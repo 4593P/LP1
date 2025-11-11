@@ -1,173 +1,146 @@
-//FCFS
-import java.util.*;
-
-public class FCFS_Scheduling {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-
-        // Input number of processes
-        System.out.print("Enter number of processes: ");
-        int n = sc.nextInt();
-
-        Process[] processes = new Process[n];
-
-        // Input arrival and burst time for each process
-        for (int i = 0; i < n; i++) {
-            System.out.println("\nEnter details for Process " + (i + 1));
-            System.out.print("Arrival Time: ");
-            int at = sc.nextInt();
-            System.out.print("Burst Time: ");
-            int bt = sc.nextInt();
-            processes[i] = new Process(i + 1, at, bt);
-        }
-
-        // Sort processes by arrival time
-        Arrays.sort(processes, Comparator.comparingInt(p -> p.arrivalTime));
-
-        int currentTime = 0;
-        for (Process p : processes) {
-            if (currentTime < p.arrivalTime) {
-                currentTime = p.arrivalTime; // CPU idle
-            }
-            p.completionTime = currentTime + p.burstTime;
-            p.turnaroundTime = p.completionTime - p.arrivalTime;
-            p.waitingTime = p.turnaroundTime - p.burstTime;
-            currentTime = p.completionTime;
-        }
-
-        // Display process table
-        System.out.println("\nPID\tAT\tBT\tCT\tTAT\tWT");
-        for (Process p : processes) {
-            System.out.printf("P%d\t%d\t%d\t%d\t%d\t%d\n",
-                    p.pid, p.arrivalTime, p.burstTime, p.completionTime,
-                    p.turnaroundTime, p.waitingTime);
-        }
-
-        // Display Gantt Chart
-        System.out.println("\nGantt Chart:");
-        System.out.print("|");
-        for (Process p : processes) {
-            System.out.print("  P" + p.pid + "  |");
-        }
-
-        System.out.println();
-        System.out.print(processes[0].arrivalTime);
-        for (Process p : processes) {
-            System.out.printf("%6d", p.completionTime);
-        }
-
-        sc.close();
-    }
-}
-class Process {
-    int pid, arrivalTime, burstTime, completionTime, waitingTime, turnaroundTime;
-
-    public Process(int pid, int arrivalTime, int burstTime) {
-        this.pid = pid;
-        this.arrivalTime = arrivalTime;
-        this.burstTime = burstTime;
-    }
-}
-
-//SJF
 import java.util.*;
 
 class Process {
-    int pid;            // Process ID
-    int arrivalTime;    // Arrival Time
-    int burstTime;      // Burst Time
-    int remainingTime;  // Remaining Time
-    int completionTime; // Completion Time
-    int waitingTime;    // Waiting Time
-    int turnaroundTime; // Turnaround Time
+    int pid;          // process id
+    int arrival;      // arrival time
+    int burst;        // burst time
+    int remaining;    // remaining time (for SJF preemptive)
+    int completion;   // completion time
+    int waiting;      // waiting time
+    int turnaround;   // turnaround time
 
-    Process(int pid, int arrivalTime, int burstTime) {
+    Process(int pid, int arrival, int burst) {
         this.pid = pid;
-        this.arrivalTime = arrivalTime;
-        this.burstTime = burstTime;
-        this.remainingTime = burstTime;
+        this.arrival = arrival;
+        this.burst = burst;
+        this.remaining = burst;
     }
 }
 
-public class SJFPreemptive {
+public class SchedulingSimulation {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
-
         System.out.print("Enter number of processes: ");
         int n = sc.nextInt();
 
-        List<Process> processes = new ArrayList<>();
-
+        Process[] p = new Process[n];
         for (int i = 0; i < n; i++) {
-            System.out.println("\nEnter details for Process " + (i + 1));
-            System.out.print("Arrival Time: ");
+            System.out.print("Enter arrival time and burst time for process P" + (i + 1) + ": ");
             int at = sc.nextInt();
-            System.out.print("Burst Time: ");
             int bt = sc.nextInt();
-            processes.add(new Process(i + 1, at, bt));
+            p[i] = new Process(i + 1, at, bt);
         }
 
-        // Simulation variables
-        int completed = 0, currentTime = 0, prev = -1;
-        double totalWT = 0, totalTAT = 0;
+        System.out.println("\n--- FCFS Scheduling ---");
+        fcfs(p);
 
-        System.out.println("\n--- Gantt Chart ---");
-        System.out.print("|");
+        System.out.println("\n--- SJF (Preemptive) Scheduling ---");
+        sjfPreemptive(p);
+    }
 
-        while (completed != n) {
+    // ---------- FCFS ----------
+    static void fcfs(Process[] p) {
+        // sort by arrival time
+        Arrays.sort(p, Comparator.comparingInt(a -> a.arrival));
+
+        int time = 0;
+        for (Process pr : p) {
+            if (time < pr.arrival)
+                time = pr.arrival;
+            time += pr.burst;
+            pr.completion = time;
+            pr.turnaround = pr.completion - pr.arrival;
+            pr.waiting = pr.turnaround - pr.burst;
+        }
+
+        printTable(p);
+        printAverage(p);
+    }
+
+    // ---------- SJF (Preemptive) ----------
+    static void sjfPreemptive(Process[] processes) {
+        // Make a deep copy so previous data doesn’t affect this
+        Process[] p = new Process[processes.length];
+        for (int i = 0; i < processes.length; i++)
+            p[i] = new Process(processes[i].pid, processes[i].arrival, processes[i].burst);
+
+        int completed = 0, time = 0, n = p.length;
+        Process current = null;
+
+        while (completed < n) {
+            // find process with minimum remaining time at current time
             Process shortest = null;
-            int minRT = Integer.MAX_VALUE;
-
-            // Find process with shortest remaining time at current time
-            for (Process p : processes) {
-                if (p.arrivalTime <= currentTime && p.remainingTime > 0 && p.remainingTime < minRT) {
-                    minRT = p.remainingTime;
-                    shortest = p;
+            for (Process pr : p) {
+                if (pr.arrival <= time && pr.remaining > 0) {
+                    if (shortest == null || pr.remaining < shortest.remaining)
+                        shortest = pr;
                 }
             }
 
             if (shortest == null) {
-                currentTime++;
+                time++;
                 continue;
             }
 
-            // Print process execution order (Gantt chart)
-            if (prev != shortest.pid) {
-                System.out.print(" P" + shortest.pid + " |");
-                prev = shortest.pid;
-            }
+            shortest.remaining--;
+            time++;
 
-            // Execute process for 1 unit time
-            shortest.remainingTime--;
-            currentTime++;
-
-            // If process completed
-            if (shortest.remainingTime == 0) {
+            // if process finishes
+            if (shortest.remaining == 0) {
+                shortest.completion = time;
+                shortest.turnaround = shortest.completion - shortest.arrival;
+                shortest.waiting = shortest.turnaround - shortest.burst;
                 completed++;
-                shortest.completionTime = currentTime;
-                shortest.turnaroundTime = shortest.completionTime - shortest.arrivalTime;
-                shortest.waitingTime = shortest.turnaroundTime - shortest.burstTime;
-
-                totalWT += shortest.waitingTime;
-                totalTAT += shortest.turnaroundTime;
             }
         }
 
-        System.out.println("\n\n--- Process Table ---");
-        System.out.printf("%-10s%-15s%-15s%-15s%-15s%-15s\n",
-                "PID", "Arrival", "Burst", "Completion", "Waiting", "Turnaround");
-        for (Process p : processes) {
-            System.out.printf("%-10d%-15d%-15d%-15d%-15d%-15d\n",
-                    p.pid, p.arrivalTime, p.burstTime, p.completionTime, p.waitingTime, p.turnaroundTime);
+        printTable(p);
+        printAverage(p);
+    }
+
+    // ---------- Utility functions ----------
+    static void printTable(Process[] p) {
+        System.out.println("\nPID\tAT\tBT\tCT\tTAT\tWT");
+        for (Process pr : p) {
+            System.out.println("P" + pr.pid + "\t" + pr.arrival + "\t" + pr.burst + "\t" + pr.completion + "\t" + pr.turnaround + "\t" + pr.waiting);
         }
+    }
 
-        System.out.printf("\nAverage Waiting Time: %.2f", totalWT / n);
-        System.out.printf("\nAverage Turnaround Time: %.2f\n", totalTAT / n);
-
-        sc.close();
+    static void printAverage(Process[] p) {
+        double avgWT = 0, avgTAT = 0;
+        for (Process pr : p) {
+            avgWT += pr.waiting;
+            avgTAT += pr.turnaround;
+        }
+        avgWT /= p.length;
+        avgTAT /= p.length;
+        System.out.printf("\nAverage Waiting Time: %.2f", avgWT);
+        System.out.printf("\nAverage Turnaround Time: %.2f\n", avgTAT);
     }
 }
 
+SAMPLE INPUT
+
+  Enter number of processes: 3
+Enter arrival time and burst time for process P1: 0 5
+Enter arrival time and burst time for process P2: 1 3
+Enter arrival time and burst time for process P3: 2 1
 
 
+  SAMPLE OUTPUT
 
+--- FCFS Scheduling ---
+PID	AT	BT	CT	TAT	WT
+P1	0	5	5	5	0
+P2	1	3	8	7	4
+P3	2	1	9	7	6
+Average Waiting Time: 3.33
+Average Turnaround Time: 6.33
+
+--- SJF (Preemptive) Scheduling ---
+PID	AT	BT	CT	TAT	WT
+P1	0	5	9	9	4
+P2	1	3	7	6	3
+P3	2	1	3	1	0
+Average Waiting Time: 2.33
+Average Turnaround Time: 5.33
